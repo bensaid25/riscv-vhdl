@@ -47,7 +47,8 @@ flowchart LR
 
 ### Requirements
 
-- [GHDL](https://github.com/ghdl/ghdl) (VHDL-2008 support)
+- [GHDL](https://github.com/ghdl/ghdl) with the LLVM backend (`ghdl-llvm`, VHDL-2008 support; required by cocotb)
+- [cocotb](https://www.cocotb.org/) 2.x and Python 3 (installed from `requirements.txt`)
 - [GTKWave](https://gtkwave.sourceforge.net/) to inspect waveforms
 - `make`
 - Optional: Python 3 with [cocotb](https://www.cocotb.org/), RISC-V GCC toolchain
@@ -55,7 +56,9 @@ flowchart LR
 On Ubuntu or WSL:
 
 ```bash
-sudo apt install ghdl gtkwave make
+sudo apt install -y ghdl-llvm gtkwave make python3-venv
+python3 -m venv ~/.venvs/hdl && source ~/.venvs/hdl/bin/activate
+pip install -r requirements.txt
 ```
 
 ### Run the tests
