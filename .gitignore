@@ -1,0 +1,10 @@
+sim/*
+!sim/.gitkeep
+*.cf
+*.o
+*.ghw
+*.vcd
+.venv/
+__pycache__/
+sim_build/
+results.xml
