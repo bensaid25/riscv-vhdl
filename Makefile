@@ -1,11 +1,12 @@
+PYTHON ?= python
 GHDL := ghdl
 STD  := --std=08
 WORK := sim/work
 TBS  := $(patsubst tb/%.vhd,%,$(wildcard tb/*_tb.vhd))
 
-.PHONY: all test clean $(TBS)
+.PHONY: all test clean cocotb $(TBS)
 all: test
-test: $(TBS)
+test: $(TBS) cocotb
 
 $(WORK)/.imported: $(wildcard rtl/*.vhd) $(wildcard tb/*.vhd)
 	mkdir -p $(WORK)
@@ -17,4 +18,7 @@ $(TBS): %: $(WORK)/.imported
 	$(GHDL) -r $(STD) --workdir=$(WORK) $@ --assert-level=error --wave=sim/$@.ghw
 
 clean:
-	rm -rf sim/work sim/*.ghw work-obj08.cf
+	rm -rf sim/work sim/cocotb_build sim/*.ghw work-obj08.cf
+
+cocotb:
+	@for t in tests/test_*.py; do echo "== $$t"; $(PYTHON) $$t || exit 1; done
