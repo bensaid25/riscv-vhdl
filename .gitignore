@@ -8,3 +8,7 @@ sim/*
 __pycache__/
 sim_build/
 results.xml
+.venv/
+__pycache__/
+*.pyc
+results.xml

@@ -42,8 +42,8 @@ begin
           report "False detection at index " & integer'image(i) severity error;
       end if;
     end loop;
-    assert hits = 5
-      report "Golden model counted " & integer'image(hits) & " hits, expected 5"
+    assert hits = 6
+      report "Golden model counted " & integer'image(hits) & " hits, expected 6"
       severity error;
 
     -- Test 2: reset must win over a pattern completing at the same edge
