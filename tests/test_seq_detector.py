@@ -1,12 +1,10 @@
 import random
-import sys
-import xml.etree.ElementTree as ET
-from pathlib import Path
 
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import RisingEdge, Timer
-from cocotb_tools.runner import get_runner
+
+from helpers import run_ghdl
 
 
 @cocotb.test()
@@ -26,7 +24,7 @@ async def random_stream(dut):
         b = rng.getrandbits(1)
         dut.din.value = b
         await RisingEdge(dut.clk)
-        await Timer(1, unit="ns")
+        await Timer(1, unit="ns")          # Moore: output valid after the edge
         hist = ((hist << 1) | b) & 0xF
         expected = int(hist == 0b1011)
         hits += expected
@@ -36,34 +34,7 @@ async def random_stream(dut):
 
 
 def test_runner():
-    root = Path(__file__).resolve().parent.parent
-    build_dir = root / "sim" / "cocotb_build"
-    runner = get_runner("ghdl")
-    runner.build(
-        sources=[root / "rtl" / "seq_detector.vhd"],
-        hdl_toplevel="seq_detector",
-        build_args=["--std=08"],
-        build_dir=build_dir,
-    )
-    runner.test(
-        hdl_toplevel="seq_detector",
-        test_module="test_seq_detector",
-        test_args=["--std=08"],
-        build_dir=build_dir,
-        test_dir=build_dir,
-    )
-
-    # cocotb records failures in results.xml but does not raise: check it here
-    results = build_dir / "results.xml"
-    if not results.exists():
-        sys.exit(f"cocotb produced no results file at {results}")
-    failed = [
-        tc.get("name")
-        for tc in ET.parse(results).getroot().iter("testcase")
-        if tc.find("failure") is not None or tc.find("error") is not None
-    ]
-    if failed:
-        sys.exit(f"cocotb tests failed: {failed}")
+    run_ghdl("seq_detector", ["seq_detector.vhd"], "test_seq_detector")
 
 
 if __name__ == "__main__":

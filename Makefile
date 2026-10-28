@@ -18,7 +18,7 @@ $(TBS): %: $(WORK)/.imported
 	$(GHDL) -r $(STD) --workdir=$(WORK) $@ --assert-level=error --wave=sim/$@.ghw
 
 clean:
-	rm -rf sim/work sim/cocotb_build sim/*.ghw work-obj08.cf
+	rm -rf sim/work sim/cocotb_* sim/*.ghw work-obj08.cf
 
 cocotb:
 	@for t in tests/test_*.py; do echo "== $$t"; $(PYTHON) $$t || exit 1; done
