@@ -1,4 +1,6 @@
 import random
+import sys
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import cocotb
@@ -50,6 +52,18 @@ def test_runner():
         build_dir=build_dir,
         test_dir=build_dir,
     )
+
+    # cocotb records failures in results.xml but does not raise: check it here
+    results = build_dir / "results.xml"
+    if not results.exists():
+        sys.exit(f"cocotb produced no results file at {results}")
+    failed = [
+        tc.get("name")
+        for tc in ET.parse(results).getroot().iter("testcase")
+        if tc.find("failure") is not None or tc.find("error") is not None
+    ]
+    if failed:
+        sys.exit(f"cocotb tests failed: {failed}")
 
 
 if __name__ == "__main__":
