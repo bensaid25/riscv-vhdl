@@ -36,6 +36,7 @@ begin
       when ALU_SRA  => r := std_logic_vector(shift_right(sa, shamt));
       when ALU_SLT  => if sa < sb then r(0) := '1'; end if;
       when ALU_SLTU => if ua < ub then r(0) := '1'; end if;
+      when ALU_COPYB => r := b;
     end case;
 
     result <= r;

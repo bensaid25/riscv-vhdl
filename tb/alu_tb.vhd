@@ -5,8 +5,8 @@ use work.alu_pkg.all;
 entity alu_tb is end entity;
 
 architecture sim of alu_tb is
-  signal a, b, result : std_logic_vector(31 downto 0);
-  signal op   : alu_op_t;
+  signal a, b, result : std_logic_vector(31 downto 0) := (others => '0');
+  signal op   : alu_op_t := ALU_ADD;
   signal zero : std_logic;
 begin
   dut: entity work.alu
@@ -28,6 +28,8 @@ begin
         report alu_op_t'image(iop) & ": wrong zero flag" severity error;
     end procedure;
   begin
+    check(x"12345678", x"9ABCDEF0", ALU_COPYB, x"9ABCDEF0");
+    check(x"12345678", x"00000000", ALU_COPYB, x"00000000");
     check(x"00000001", x"00000001", ALU_ADD,  x"00000002");
     check(x"FFFFFFFF", x"00000001", ALU_ADD,  x"00000000");  -- wraparound
     check(x"00000000", x"00000001", ALU_SUB,  x"FFFFFFFF");
