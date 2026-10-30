@@ -51,7 +51,7 @@ flowchart LR
 - [cocotb](https://www.cocotb.org/) 2.x and Python 3 (installed from `requirements.txt`)
 - [GTKWave](https://gtkwave.sourceforge.net/) to inspect waveforms
 - `make`
-- Optional: Python 3 with [cocotb](https://www.cocotb.org/), RISC-V GCC toolchain
+- Optional: RISC-V GCC toolchain (for the C-program tests in later phases)
 
 On Ubuntu or WSL:
 
