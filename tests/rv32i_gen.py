@@ -35,17 +35,26 @@ SPECIAL_IMMS = [0, 1, -1, 2047, -2048, 31]
 
 
 class Gen:
-    def __init__(self, seed):
+    def __init__(self, seed, hazard=0.0):
         self.rng = random.Random(seed)
+        self.hazard = hazard         # probability that a source is a recent destination
+        self.recent = []             # destination of each of the last instructions (None = no write)
         self.words = []
         self.kinds = []
 
     def emit(self, kind, word):
         self.words.append(word)
         self.kinds.append(kind)
+        op, rd = word & 0x7F, (word >> 7) & 31
+        self.recent.append(None if op in (0x63, 0x23) or rd == 0 else rd)
+        del self.recent[:-3]
 
     # ---- random operands ----------------------------------------------
     def src(self):
+        if self.hazard and self.rng.random() < self.hazard:
+            dist = self.rng.choices([1, 2, 3], weights=[6, 3, 1])[0]
+            if len(self.recent) >= dist and self.recent[-dist] is not None:
+                return self.recent[-dist]
         return self.rng.randrange(32)
 
     def dst(self, avoid=()):
@@ -161,9 +170,12 @@ class Gen:
             self.loop()
 
 
-def generate(seed, body_len=80):
-    """Return (program words, list of instruction names), deterministic for a seed."""
-    g = Gen(seed)
+def generate(seed, body_len=80, hazard=0.0):
+    """Return (program words, list of instruction names), deterministic for a seed.
+
+    hazard = 0.0 reproduces the original programs; around 0.6 makes back-to-back
+    dependencies and load-use pairs common."""
+    g = Gen(seed, hazard)
     g.prologue()
     start = len(g.words)
     while len(g.words) - start < body_len:

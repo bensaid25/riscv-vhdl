@@ -13,6 +13,7 @@ SOURCES = ["alu_pkg.vhd", "alu.vhd", "ctrl_pkg.vhd", "control.vhd", "immgen.vhd"
            "dmem.vhd", "cpu_sc.vhd"]
 N_PROGRAMS = int(os.environ.get("RV_PROGRAMS", "40"))
 SEED0 = int(os.environ.get("RV_SEED0", "1000"))
+HAZARD = float(os.environ.get("RV_HAZARD", "0.0"))
 
 
 async def monitor_stores(dut, trace):
@@ -50,10 +51,10 @@ async def random_programs(dut):
     cocotb.start_soon(monitor_stores(dut, trace))
 
     for seed in range(SEED0, SEED0 + N_PROGRAMS):
-        words, _ = generate(seed)
+        words, _ = generate(seed, hazard=HAZARD)
         model = RV32IModel(words)
         halt_pc = model.run()
-        where = f"seed {seed} (reproduce: RV_SEED0={seed} RV_PROGRAMS=1 python tests/test_cpu_random.py)"
+        where = f"seed {seed} (reproduce: RV_HAZARD={HAZARD} RV_SEED0={seed} RV_PROGRAMS=1 python tests/test_cpu_random.py)"
 
         # load the program while the CPU is held in reset
         dut.rst.value = 1
