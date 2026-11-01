@@ -25,3 +25,7 @@ cocotb:
 
 .PHONY: cpu_regress
 cpu_regress: cpu_tb cocotb
+
+.PHONY: pipe_skeleton
+pipe_skeleton:
+	python tests/test_cpu_pipe_skeleton.py
