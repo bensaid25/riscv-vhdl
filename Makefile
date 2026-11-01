@@ -22,3 +22,6 @@ clean:
 
 cocotb:
 	@for t in tests/test_*.py; do echo "== $$t"; $(PYTHON) $$t || exit 1; done
+
+.PHONY: cpu_regress
+cpu_regress: cpu_tb cocotb
