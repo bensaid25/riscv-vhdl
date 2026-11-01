@@ -1,12 +1,9 @@
 import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, RisingEdge, Timer
+from helpers import run_ghdl, CPU_SOURCES
 
-from helpers import run_ghdl
 
-SOURCES = ["alu_pkg.vhd", "alu.vhd", "ctrl_pkg.vhd", "control.vhd", "immgen.vhd",
-           "regfile.vhd", "branch_unit.vhd", "cpu_core.vhd", "imem.vhd",
-           "dmem.vhd", "cpu_sc.vhd"]
 
 PROG_ADD = [0x00500113, 0x00A00193, 0x003100B3, 0x00102023, 0x0000006F]
 PROG_LOOP = [0x00000093, 0x00500113, 0x002080B3, 0xFFF10113,
@@ -60,9 +57,9 @@ async def reload_and_run_loop(dut):
     assert await mem_word(dut, 4) == 15
 
 
-def test_runner():
-    run_ghdl("cpu_sc", SOURCES, "test_cpu_smoke")
 
+def test_runner():
+    run_ghdl("cpu_sc", CPU_SOURCES, "test_cpu_smoke")
 
 if __name__ == "__main__":
     test_runner()

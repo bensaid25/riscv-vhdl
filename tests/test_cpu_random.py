@@ -4,13 +4,10 @@ import cocotb
 from cocotb.clock import Clock
 from cocotb.triggers import ClockCycles, FallingEdge, RisingEdge, Timer
 
-from helpers import run_ghdl
+from helpers import run_ghdl, CPU_SOURCES
 from rv32i_gen import DATA_BASE, DATA_WORDS, generate
 from rv32i_model import RV32IModel
 
-SOURCES = ["alu_pkg.vhd", "alu.vhd", "ctrl_pkg.vhd", "control.vhd", "immgen.vhd",
-           "regfile.vhd", "branch_unit.vhd", "cpu_core.vhd", "imem.vhd",
-           "dmem.vhd", "cpu_sc.vhd"]
 N_PROGRAMS = int(os.environ.get("RV_PROGRAMS", "40"))
 SEED0 = int(os.environ.get("RV_SEED0", "1000"))
 HAZARD = float(os.environ.get("RV_HAZARD", "0.0"))
@@ -95,7 +92,7 @@ async def random_programs(dut):
 
 
 def test_runner():
-    run_ghdl("cpu_sc", SOURCES, "test_cpu_random")
+    run_ghdl("cpu_sc", CPU_SOURCES, "test_cpu_random")
 
 
 if __name__ == "__main__":
