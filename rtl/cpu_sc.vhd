@@ -14,7 +14,15 @@ entity cpu_sc is
     pc_out   : out std_logic_vector(31 downto 0);
     st_valid : out std_logic;                       -- a store happens this cycle
     st_addr  : out std_logic_vector(31 downto 0);
-    st_data  : out std_logic_vector(31 downto 0)
+    st_data  : out std_logic_vector(31 downto 0);
+    -- optional ports for cocotb (unused by cpu_tb)
+    load_we   : in  std_logic := '0';          -- write one instruction word
+    load_addr : in  std_logic_vector(31 downto 0) := (others => '0');  -- byte address
+    load_data : in  std_logic_vector(31 downto 0) := (others => '0');
+    dbg_raddr : in  std_logic_vector(4 downto 0) := (others => '0');
+    dbg_rdata : out std_logic_vector(31 downto 0);
+    dbg_maddr : in  std_logic_vector(31 downto 0) := (others => '0');  -- data memory byte address
+    dbg_mdata : out std_logic_vector(31 downto 0)
   );
 end entity;
 
@@ -28,17 +36,20 @@ begin
     port map (clk => clk, rst => rst,
               imem_addr => pc, imem_instr => instr,
               dmem_we => d_we, dmem_re => d_re, dmem_funct3 => d_funct3,
-              dmem_addr => d_addr, dmem_wdata => d_wdata, dmem_rdata => d_rdata);
+              dmem_addr => d_addr, dmem_wdata => d_wdata, dmem_rdata => d_rdata,
+              dbg_raddr => dbg_raddr, dbg_rdata => dbg_rdata);
 
   u_imem : entity work.imem
     generic map (INIT_FILE => IMEM_FILE, DEPTH => IMEM_WORDS)
-    port map (addr => pc, instr => instr);
+    port map (addr => pc, instr => instr, clk => clk,
+              load_we => load_we, load_addr => load_addr, load_data => load_data);
 
   u_dmem : entity work.dmem
     generic map (DEPTH => DMEM_BYTES)
     port map (clk => clk, mem_write => d_we, mem_read => d_re,
               funct3 => d_funct3, addr => d_addr,
-              wdata => d_wdata, rdata => d_rdata);
+              wdata => d_wdata, rdata => d_rdata,
+              dbg_addr => dbg_maddr, dbg_data => dbg_mdata);
 
   -- Observation: the very signals wired into the data memory
   pc_out   <= pc;

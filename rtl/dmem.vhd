@@ -11,7 +11,10 @@ entity dmem is
     funct3    : in  std_logic_vector(2 downto 0);
     addr      : in  std_logic_vector(31 downto 0);
     wdata     : in  std_logic_vector(31 downto 0);
-    rdata     : out std_logic_vector(31 downto 0)
+    rdata     : out std_logic_vector(31 downto 0);
+    -- debug word read (used by cocotb), little-endian
+    dbg_addr  : in  std_logic_vector(31 downto 0) := (others => '0');
+    dbg_data  : out std_logic_vector(31 downto 0)
   );
 end entity;
 
@@ -64,5 +67,11 @@ begin
         when others => null;
       end case;
     end if;
+  end process;
+  process(all)
+    variable a : natural;
+  begin
+    a := to_integer(unsigned(dbg_addr(30 downto 0))) mod DEPTH;
+    dbg_data <= mem((a + 3) mod DEPTH) & mem((a + 2) mod DEPTH) & mem((a + 1) mod DEPTH) & mem(a);
   end process;
 end architecture;

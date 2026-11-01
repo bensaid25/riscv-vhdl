@@ -10,7 +10,12 @@ entity imem is
   );
   port (
     addr  : in  std_logic_vector(31 downto 0);   -- byte address (the PC)
-    instr : out std_logic_vector(31 downto 0)
+    instr : out std_logic_vector(31 downto 0);
+    -- optional load port (used by cocotb); idle when load_we = '0'
+    clk       : in  std_logic := '0';
+    load_we   : in  std_logic := '0';
+    load_addr : in  std_logic_vector(31 downto 0) := (others => '0');
+    load_data : in  std_logic_vector(31 downto 0) := (others => '0')
   );
 end entity;
 
@@ -43,7 +48,16 @@ architecture rtl of imem is
     return m;
   end function;
 
-  constant mem : mem_t := load(INIT_FILE);
+  signal mem : mem_t := load(INIT_FILE);
 begin
+  process(clk)
+  begin
+    if rising_edge(clk) then
+      if load_we = '1' then
+        mem(to_integer(unsigned(load_addr(30 downto 2))) mod DEPTH) <= load_data;
+      end if;
+    end if;
+  end process;
+
   instr <= mem(to_integer(unsigned(addr(30 downto 2))) mod DEPTH);
 end architecture;

@@ -11,7 +11,10 @@ entity regfile is
     raddr1 : in  std_logic_vector(4 downto 0);
     raddr2 : in  std_logic_vector(4 downto 0);
     rdata1 : out std_logic_vector(31 downto 0);
-    rdata2 : out std_logic_vector(31 downto 0)
+    rdata2 : out std_logic_vector(31 downto 0);
+    -- debug read port (used by cocotb)
+    dbg_addr : in  std_logic_vector(4 downto 0) := (others => '0');
+    dbg_data : out std_logic_vector(31 downto 0)
   );
 end entity;
 
@@ -30,4 +33,5 @@ begin
 
   rdata1 <= regs(to_integer(unsigned(raddr1)));  -- asynchronous reads
   rdata2 <= regs(to_integer(unsigned(raddr2)));
+  dbg_data <= regs(to_integer(unsigned(dbg_addr)));
 end architecture;

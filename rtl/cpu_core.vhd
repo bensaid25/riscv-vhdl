@@ -17,7 +17,10 @@ entity cpu_core is
     dmem_funct3 : out std_logic_vector(2 downto 0);
     dmem_addr   : out std_logic_vector(31 downto 0);
     dmem_wdata  : out std_logic_vector(31 downto 0);
-    dmem_rdata  : in  std_logic_vector(31 downto 0)
+    dmem_rdata  : in  std_logic_vector(31 downto 0);
+    -- debug register read port (used by cocotb)
+    dbg_raddr   : in  std_logic_vector(4 downto 0) := (others => '0');
+    dbg_rdata   : out std_logic_vector(31 downto 0)
   );
 end entity;
 
@@ -77,7 +80,8 @@ begin
     port map (clk => clk, we => rf_we,
               waddr => instr(11 downto 7), wdata => wb_data,
               raddr1 => instr(19 downto 15), raddr2 => instr(24 downto 20),
-              rdata1 => rs1_data, rdata2 => rs2_data);
+              rdata1 => rs1_data, rdata2 => rs2_data,
+              dbg_addr => dbg_raddr, dbg_data => dbg_rdata);
 
   -- Execute
   alu_a <= pc  when a_sel = '1' else rs1_data;
