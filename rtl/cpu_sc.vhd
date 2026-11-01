@@ -5,7 +5,8 @@ entity cpu_sc is
   generic (
     IMEM_FILE  : string   := "";
     IMEM_WORDS : positive := 1024;
-    DMEM_BYTES : positive := 4096
+    DMEM_BYTES : positive := 4096;
+    PIPELINED  : boolean  := false        -- false: single-cycle cpu_core, true: cpu_pipe
   );
   port (
     clk      : in  std_logic;
@@ -27,17 +28,28 @@ entity cpu_sc is
 end entity;
 
 architecture rtl of cpu_sc is
-  signal pc, instr             : std_logic_vector(31 downto 0);
-  signal d_we, d_re            : std_logic;
-  signal d_funct3              : std_logic_vector(2 downto 0);
+  signal pc, instr                : std_logic_vector(31 downto 0);
+  signal d_we, d_re               : std_logic;
+  signal d_funct3                 : std_logic_vector(2 downto 0);
   signal d_addr, d_wdata, d_rdata : std_logic_vector(31 downto 0);
 begin
-  u_core : entity work.cpu_core
-    port map (clk => clk, rst => rst,
-              imem_addr => pc, imem_instr => instr,
-              dmem_we => d_we, dmem_re => d_re, dmem_funct3 => d_funct3,
-              dmem_addr => d_addr, dmem_wdata => d_wdata, dmem_rdata => d_rdata,
-              dbg_raddr => dbg_raddr, dbg_rdata => dbg_rdata);
+  gen_single : if not PIPELINED generate
+    u_core : entity work.cpu_core
+      port map (clk => clk, rst => rst,
+                imem_addr => pc, imem_instr => instr,
+                dmem_we => d_we, dmem_re => d_re, dmem_funct3 => d_funct3,
+                dmem_addr => d_addr, dmem_wdata => d_wdata, dmem_rdata => d_rdata,
+                dbg_raddr => dbg_raddr, dbg_rdata => dbg_rdata);
+  end generate;
+
+  gen_pipe : if PIPELINED generate
+    u_core : entity work.cpu_pipe
+      port map (clk => clk, rst => rst,
+                imem_addr => pc, imem_instr => instr,
+                dmem_we => d_we, dmem_re => d_re, dmem_funct3 => d_funct3,
+                dmem_addr => d_addr, dmem_wdata => d_wdata, dmem_rdata => d_rdata,
+                dbg_raddr => dbg_raddr, dbg_rdata => dbg_rdata);
+  end generate;
 
   u_imem : entity work.imem
     generic map (INIT_FILE => IMEM_FILE, DEPTH => IMEM_WORDS)
