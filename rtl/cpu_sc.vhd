@@ -22,6 +22,7 @@ entity cpu_sc is
 end entity;
 
 architecture rtl of cpu_sc is
+  signal mem_wdata : std_logic_vector(31 downto 0);
   signal pc, pc_plus4, pc_target, next_pc : std_logic_vector(31 downto 0) := (others => '0');
   signal instr, imm                       : std_logic_vector(31 downto 0);
   signal rs1_data, rs2_data               : std_logic_vector(31 downto 0);
@@ -95,7 +96,7 @@ begin
     generic map (DEPTH => DMEM_BYTES)
     port map (clk => clk, mem_write => dm_we, mem_read => mem_read,
               funct3 => instr(14 downto 12), addr => alu_result,
-              wdata => rs2_data, rdata => mem_rdata);
+              wdata => mem_wdata, rdata => mem_rdata);
 
   -- Write-back
   with wb_sel select
@@ -105,7 +106,8 @@ begin
 
   -- Observation
   pc_out   <= pc;
+  mem_wdata <= rs2_data;
   st_valid <= dm_we;
   st_addr  <= alu_result;
-  st_data  <= rs2_data;
+  st_data  <= mem_wdata;
 end architecture;
