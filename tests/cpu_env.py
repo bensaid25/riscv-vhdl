@@ -1,6 +1,8 @@
 """Helpers shared by the CPU cocotb tests (program loading, state read-back, run control)."""
 from cocotb.triggers import ClockCycles, FallingEdge, RisingEdge, Timer
 
+from rv32i_model import RV32IModel
+
 
 async def monitor_stores(dut, trace):
     """Record (address, data) of every store; sampled mid-cycle, when signals are stable."""
@@ -47,3 +49,25 @@ async def run_until_halt(dut, halt_pc, max_cycles, drain=12):
         raise AssertionError(f"pc never reached the halt address {halt_pc:#x} in {max_cycles} cycles")
     await ClockCycles(dut.clk, drain)
     await Timer(1, unit="ns")
+
+
+async def run_and_compare(dut, name, words, trace):
+    """Load `words`, run model and CPU, compare stores, registers and memory."""
+    await load_program(dut, words)
+    model = RV32IModel(words)
+    for n in range(1, 32):                    # the CPU keeps its registers between programs
+        model.regs[n] = await read_reg(dut, n)
+    halt_pc = model.run()
+
+    trace.clear()
+    await run_until_halt(dut, halt_pc, max_cycles=10 * model.steps + 200)
+
+    expected = [(a, d) for a, d, _ in model.stores]
+    assert trace == expected, f"{name}: store trace {trace}, model {expected}"
+    for n in range(32):
+        got = await read_reg(dut, n)
+        assert got == model.regs[n], f"{name}: x{n} = {got:#010x}, model {model.regs[n]:#010x}"
+    for a in sorted({s[0] & ~3 for s in model.stores}):
+        got = await read_word(dut, a)
+        assert got == model.word(a), f"{name}: mem[{a:#x}] = {got:#010x}, model {model.word(a):#010x}"
+    dut._log.info(f"{name}: {model.steps} instructions, CPU matches the model")
