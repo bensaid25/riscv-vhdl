@@ -3,6 +3,9 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 entity regfile is
+  generic (
+    BYPASS : boolean := false   -- true: reading the register being written returns the new data
+  );
   port (
     clk    : in  std_logic;
     we     : in  std_logic;
@@ -31,7 +34,10 @@ begin
     end if;
   end process;
 
-  rdata1 <= regs(to_integer(unsigned(raddr1)));  -- asynchronous reads
-  rdata2 <= regs(to_integer(unsigned(raddr2)));
+  -- asynchronous reads; with BYPASS, a register written this cycle reads as the new data
+  rdata1 <= wdata when BYPASS and we = '1' and waddr = raddr1 and raddr1 /= "00000"
+            else regs(to_integer(unsigned(raddr1)));
+  rdata2 <= wdata when BYPASS and we = '1' and waddr = raddr2 and raddr2 /= "00000"
+            else regs(to_integer(unsigned(raddr2)));
   dbg_data <= regs(to_integer(unsigned(dbg_addr)));
 end architecture;
