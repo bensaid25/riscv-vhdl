@@ -16,6 +16,10 @@ architecture sim of cpu_tb is
   signal a_cnt, b_cnt : natural := 0;
   signal a_addr_seen, a_data_seen : std_logic_vector(31 downto 0) := (others => 'U');
   signal b_addr_seen, b_data_seen : std_logic_vector(31 downto 0) := (others => 'U');
+  signal c_pc, c_st_addr, c_st_data : std_logic_vector(31 downto 0);
+  signal c_st_valid : std_logic;
+  signal c_cnt : natural := 0;
+  signal c_addr_seen, c_data_seen : std_logic_vector(31 downto 0) := (others => 'U');
 begin
   clk <= not clk after 5 ns when not done;
 
@@ -29,6 +33,11 @@ begin
     port map (clk => clk, rst => rst, pc_out => b_pc,
               st_valid => b_st_valid, st_addr => b_st_addr, st_data => b_st_data);
 
+  dut_c : entity work.cpu_sc
+    generic map (IMEM_FILE => "tb/data/prog_reset.hex", IMEM_WORDS => 64, DMEM_BYTES => 256)
+    port map (clk => clk, rst => rst, pc_out => c_pc,
+              st_valid => c_st_valid, st_addr => c_st_addr, st_data => c_st_data);
+
   -- Store monitors: sample on the clock edge, as the data memory does
   monitor : process(clk)
   begin
@@ -38,6 +47,15 @@ begin
       end if;
       if b_st_valid = '1' then
         b_cnt <= b_cnt + 1;  b_addr_seen <= b_st_addr;  b_data_seen <= b_st_data;
+      end if;
+    end if;
+  end process;
+
+  monitor_c : process(clk)
+  begin
+    if rising_edge(clk) then
+      if c_st_valid = '1' then
+        c_cnt <= c_cnt + 1;  c_addr_seen <= c_st_addr;  c_data_seen <= c_st_data;
       end if;
     end if;
   end process;
@@ -65,6 +83,12 @@ begin
     assert b_addr_seen = x"00000004" report "B: wrong store address " & to_hstring(b_addr_seen) severity error;
     assert b_data_seen = x"0000000F" report "B: wrong store data " & to_hstring(b_data_seen) severity error;
     assert b_pc = x"00000018" report "B: CPU not parked at the halt loop, pc=" & to_hstring(b_pc) severity error;
+
+    -- Program C: first instruction is not idempotent, so it exposes writes during reset
+    assert c_cnt = 1 report "C: expected exactly 1 store, saw " & integer'image(c_cnt) severity error;
+    assert c_addr_seen = x"00000000" report "C: wrong store address " & to_hstring(c_addr_seen) severity error;
+    assert c_data_seen = x"00000001" report "C: wrong store data " & to_hstring(c_data_seen) & " (register written during reset?)" severity error;
+    assert c_pc = x"00000008" report "C: CPU not parked at the halt loop, pc=" & to_hstring(c_pc) severity error;
 
     report "cpu_tb finished";
     done <= true;
