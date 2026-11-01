@@ -5,7 +5,7 @@
 ![ISA](https://img.shields.io/badge/ISA-RV32I-orange)
 ![Simulation only](https://img.shields.io/badge/hardware-not%20required-green)
 
-A **single-cycle RISC-V (RV32I) CPU** written in VHDL and verified with self-checking testbenches, Python (cocotb) tests and continuous integration.
+A **5-stage pipelined RISC-V (RV32I) CPU** in VHDL, built in phases: the single-cycle baseline is complete and verified, and the pipeline is next. Verified with self-checking testbenches, Python (cocotb) tests and continuous integration.
 
 The whole project runs in simulation: **no FPGA board required**.
 
@@ -42,6 +42,25 @@ The single-cycle RV32I CPU executes one instruction per clock cycle. It is the c
 | `cpu_core` | Processor logic |
 | `cpu_sc` | CPU core with instruction and data memories |
 
+## Target microarchitecture (phase 3)
+
+```mermaid
+flowchart LR
+  IF[IF<br/>Fetch] --> ID[ID<br/>Decode] --> EX[EX<br/>Execute] --> MEM[MEM<br/>Memory] --> WB[WB<br/>Write-back]
+  FWD[Forwarding unit] -.-> EX
+  MEM -.-> FWD
+  WB -.-> FWD
+  HZD[Hazard detection] -.-> IF
+  HZD -.-> ID
+```
+
+| Feature | Planned design choice |
+|---|---|
+| ISA | RV32I base integer instruction set |
+| Pipeline | Classic 5 stages: IF, ID, EX, MEM, WB |
+| Data hazards | Forwarding from EX/MEM and MEM/WB, stall on load-use |
+| Control hazards | Branch resolved in EX, predict-not-taken, flush on taken branch |
+| Memories | Separate instruction and data memories (already in place) |
 
 ## Verification strategy
 
@@ -94,7 +113,6 @@ The seed allows you to reproduce a failing random program.
 ```bash
 scripts/mutate.sh rtl/cpu_core.vhd cpu_regress 's/<pattern>/<replacement>/'
 ```
-
 
 ### View waveforms
 
