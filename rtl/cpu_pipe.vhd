@@ -88,6 +88,8 @@ architecture rtl of cpu_pipe is
   -- EX
   signal alu_a, alu_b, alu_result, pc_target, pc4_ex, redirect_target : word;
   signal zero, take_branch, ex_redirect : std_logic;
+  signal fwd_a, fwd_b              : std_logic_vector(1 downto 0);
+  signal exmem_val, rs1_ex, rs2_ex : word;
   -- WB
   signal wb_data : word;
   signal rf_we   : std_logic;
@@ -160,8 +162,27 @@ begin
   end process;
 
   ------------------------------------------------------------------ EX
-  alu_a <= idex.pc  when idex.a_sel = '1' else idex.rs1_data;
-  alu_b <= idex.imm when idex.b_sel = '1' else idex.rs2_data;
+  u_fwd : entity work.forward_unit
+    port map (rs1 => idex.rs1, rs2 => idex.rs2,
+              exmem_rd => exmem.rd, exmem_reg_write => exmem.reg_write,
+              memwb_rd => memwb.rd, memwb_reg_write => memwb.reg_write,
+              fwd_a => fwd_a, fwd_b => fwd_b);
+
+  -- value an instruction in MEM will write back. A load's data is not available
+  -- here: the load-use stall (step 3) keeps a consumer from needing it.
+  exmem_val <= exmem.pc4 when exmem.wb_sel = WB_PC4 else exmem.alu_result;
+
+  with fwd_a select
+    rs1_ex <= exmem_val     when "01",
+              wb_data       when "10",
+              idex.rs1_data when others;
+  with fwd_b select
+    rs2_ex <= exmem_val     when "01",
+              wb_data       when "10",
+              idex.rs2_data when others;
+
+  alu_a <= idex.pc  when idex.a_sel = '1' else rs1_ex;
+  alu_b <= idex.imm when idex.b_sel = '1' else rs2_ex;
 
   u_alu : entity work.alu
     port map (a => alu_a, b => alu_b, op => idex.alu_op, result => alu_result, zero => zero);
@@ -182,7 +203,7 @@ begin
       if rst = '1' then
         exmem <= EX_MEM_BUBBLE;
       else
-        exmem <= (alu_result => alu_result, rs2_data => idex.rs2_data, pc4 => pc4_ex,
+        exmem <= (alu_result => alu_result, rs2_data => rs2_ex, pc4 => pc4_ex,
                   rd => idex.rd, funct3 => idex.funct3, reg_write => idex.reg_write,
                   mem_read => idex.mem_read, mem_write => idex.mem_write,
                   wb_sel => idex.wb_sel);
