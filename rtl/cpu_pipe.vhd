@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 use work.alu_pkg.all;
 use work.ctrl_pkg.all;
 
--- Five-stage pipeline: forwarding and load-use stall; no branch flush yet.
+-- Five-stage pipeline: forwarding, load-use stall, and flush on taken branches and jumps.
 -- Same ports as cpu_core.
 entity cpu_pipe is
   port (
@@ -117,6 +117,9 @@ begin
       if rst = '1' then
         ifid_pc    <= (others => '0');
         ifid_instr <= NOP;
+      elsif ex_redirect = '1' then
+        ifid_pc    <= (others => '0');      -- flush: the instruction fetched on the wrong path
+        ifid_instr <= NOP;
       elsif stall = '0' then
         ifid_pc    <= pc;
         ifid_instr <= imem_instr;
@@ -165,7 +168,7 @@ begin
     if rising_edge(clk) then
       if rst = '1' then
         idex <= ID_EX_BUBBLE;
-      elsif stall = '1' then
+      elsif ex_redirect = '1' or stall = '1' then
         idex <= ID_EX_BUBBLE;
       else
         idex <= (pc => ifid_pc, rs1_data => rs1_id, rs2_data => rs2_id, imm => imm_id,

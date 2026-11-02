@@ -33,3 +33,7 @@ pipe_skeleton:
 .PHONY: pipe_loaduse
 pipe_loaduse:
 	python tests/test_cpu_pipe_loaduse.py
+
+.PHONY: pipe_flush
+pipe_flush:
+	python tests/test_cpu_pipe_flush.py
