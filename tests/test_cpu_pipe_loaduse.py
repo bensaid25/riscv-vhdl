@@ -1,5 +1,5 @@
-"""Directed load-use tests for the pipeline (step 5). Straight-line programs only (no taken
-branches yet). Besides the final state, the cycle count is checked:
+"""Directed load-use tests for the pipeline. Straight-line programs only (taken branches
+are covered by the flush test). Besides the final state, the cycle count is checked:
     cycles = instructions executed + declared stalls + a constant (pipeline fill)
 so a missing stall changes a result, and a spurious one changes the cycle count."""
 import cocotb

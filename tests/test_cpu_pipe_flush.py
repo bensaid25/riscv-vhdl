@@ -1,4 +1,4 @@
-"""Directed branch/jump flush tests for the pipeline (step 6). The two wrong-path slots after a
+"""Directed branch/jump flush tests for the pipeline. The two wrong-path slots after a
 taken branch or jump hold poison (a register write and a store); the words after the halt are
 poison too. Cycle count: executed instructions + stalls + 2 per redirect + a fixed overhead."""
 import cocotb

@@ -1,5 +1,6 @@
-"""Directed forwarding test (step 2): dependent instructions back to back.
-Branches and jumps stay out of the programs until the flush exists (step 4)."""
+"""Directed forwarding tests: dependent instructions back to back (ALU chains, EX/MEM vs
+MEM/WB priority, x0, stores and loads). Branches and jumps are left to the flush and
+random tests."""
 import cocotb
 from cocotb.clock import Clock
 

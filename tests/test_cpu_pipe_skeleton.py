@@ -1,7 +1,6 @@
-"""Directed test for the pipeline skeleton (step 3): no hazard logic yet, so every
-instruction is followed by two NOPs. That puts every dependency at distance 3 (handled
-by the register file bypass) and fills the two slots after a branch or jump, where the
-skeleton fetches wrong-path instructions it cannot yet flush.
+"""Base-case test for the pipeline: NOP-padded programs. Every instruction is followed by
+two NOPs, so every dependency is at distance 3 (served by the register file bypass alone,
+no forwarding or stall involved) and the two slots after a branch or jump hold NOPs.
 RV_CORE=single runs the same programs on the single-cycle CPU."""
 import os
 
