@@ -62,8 +62,8 @@ async def load_use(dut):
     overhead = {}
 
     for name, (body, stalls) in PROGRAMS.items():
-        # three NOPs drain the body; two NOPs after the halt fill the slots the pipeline
-        # fetches before the halt jump redirects (no flush yet)
+        # three NOPs drain the body; the two NOPs after the halt are padding only: the
+        # flush discards the wrong-path fetches behind the halt jump anyway
         words = SETUP + body + [NOP] * 3 + [r.HALT, NOP, NOP]
         await load_program(dut, words)
         model = RV32IModel(words)
