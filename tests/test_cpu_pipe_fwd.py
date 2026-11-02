@@ -8,7 +8,7 @@ import rv32i as r
 from cpu_env import monitor_stores, run_and_compare
 from helpers import CPU_SOURCES, run_ghdl
 
-END = [r.HALT, r.NOP, r.NOP]      # the two NOPs absorb the wrong-path fetches after the halt jump
+END = [r.HALT, r.NOP, r.NOP]      # padding only: the flush discards the wrong-path fetches behind the halt jump
 
 PROGRAMS = {
     "alu_chain": [
