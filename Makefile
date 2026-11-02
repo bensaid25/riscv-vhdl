@@ -37,3 +37,8 @@ pipe_loaduse:
 .PHONY: pipe_flush
 pipe_flush:
 	python tests/test_cpu_pipe_flush.py
+
+.PHONY: pipe_regress
+pipe_regress:
+	python tests/test_cpu_pipe_fwd.py
+	python tests/test_cpu_pipe_random.py
