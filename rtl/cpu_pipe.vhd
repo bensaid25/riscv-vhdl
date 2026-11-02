@@ -4,7 +4,7 @@ use ieee.numeric_std.all;
 use work.alu_pkg.all;
 use work.ctrl_pkg.all;
 
--- Five-stage pipeline, skeleton: no forwarding, no stall, no flush yet.
+-- Five-stage pipeline: forwarding and load-use stall; no branch flush yet.
 -- Same ports as cpu_core.
 entity cpu_pipe is
   port (
@@ -88,6 +88,7 @@ architecture rtl of cpu_pipe is
   -- EX
   signal alu_a, alu_b, alu_result, pc_target, pc4_ex, redirect_target : word;
   signal zero, take_branch, ex_redirect : std_logic;
+  signal stall, uses_rs1, uses_rs2      : std_logic;
   signal fwd_a, fwd_b              : std_logic_vector(1 downto 0);
   signal exmem_val, rs1_ex, rs2_ex : word;
   -- WB
@@ -104,7 +105,7 @@ begin
     if rising_edge(clk) then
       if rst = '1' then
         pc <= (others => '0');
-      else
+      elsif stall = '0' then
         pc <= next_pc;
       end if;
     end if;
@@ -116,7 +117,7 @@ begin
       if rst = '1' then
         ifid_pc    <= (others => '0');
         ifid_instr <= NOP;
-      else
+      elsif stall = '0' then
         ifid_pc    <= pc;
         ifid_instr <= imem_instr;
       end if;
@@ -134,6 +135,21 @@ begin
   u_imm : entity work.immgen
     port map (instr => ifid_instr, imm => imm_id);
 
+  -- Load-use hazard: the load in EX has no data yet, so a consumer in ID waits one cycle
+  -- (PC and IF/ID hold, ID/EX gets a bubble); forwarding then supplies the value.
+  uses_rs1 <= '0' when ifid_instr(6 downto 0) = "0110111"      -- lui
+                    or ifid_instr(6 downto 0) = "0010111"      -- auipc
+                    or ifid_instr(6 downto 0) = "1101111"      -- jal
+              else '1';
+  uses_rs2 <= '1' when ifid_instr(6 downto 0) = "0110011"      -- register-register
+                    or ifid_instr(6 downto 0) = "0100011"      -- store
+                    or ifid_instr(6 downto 0) = "1100011"      -- branch
+              else '0';
+  stall <= '1' when idex.mem_read = '1' and idex.rd /= "00000" and
+                    ((uses_rs1 = '1' and idex.rd = ifid_instr(19 downto 15)) or
+                     (uses_rs2 = '1' and idex.rd = ifid_instr(24 downto 20)))
+           else '0';
+
   rf_we <= memwb.reg_write and not rst;
 
   u_rf : entity work.regfile
@@ -148,6 +164,8 @@ begin
   begin
     if rising_edge(clk) then
       if rst = '1' then
+        idex <= ID_EX_BUBBLE;
+      elsif stall = '1' then
         idex <= ID_EX_BUBBLE;
       else
         idex <= (pc => ifid_pc, rs1_data => rs1_id, rs2_data => rs2_id, imm => imm_id,
@@ -169,7 +187,7 @@ begin
               fwd_a => fwd_a, fwd_b => fwd_b);
 
   -- value an instruction in MEM will write back. A load's data is not available
-  -- here: the load-use stall (step 3) keeps a consumer from needing it.
+  -- here: the load-use stall keeps a consumer from needing it.
   exmem_val <= exmem.pc4 when exmem.wb_sel = WB_PC4 else exmem.alu_result;
 
   with fwd_a select

@@ -29,3 +29,7 @@ cpu_regress: cpu_tb cocotb
 .PHONY: pipe_skeleton
 pipe_skeleton:
 	python tests/test_cpu_pipe_skeleton.py
+
+.PHONY: pipe_loaduse
+pipe_loaduse:
+	python tests/test_cpu_pipe_loaduse.py
