@@ -1,7 +1,7 @@
 """C programs (built by scripts/build_c.py) on the single-cycle and pipelined CPUs.
 Per program: model a0 vs the host gcc result (independent check), then CPU vs model on the store
-trace, all registers and stored memory words, CPU a0 vs the host result and, on the pipeline,
-the exact cycle formula. Run with: make c_regress"""
+trace, all registers, stored memory words and the initial data image, CPU a0 vs the host result
+and, on the pipeline, the exact cycle formula. Run with: make c_regress"""
 import json
 import os
 from pathlib import Path
@@ -20,6 +20,8 @@ IMEM_WORDS = 2048           # 8 KiB, matches sw/link.ld
 DMEM_BYTES = 16384          # data region 0x2000-0x3FFF, stack top 0x4000
 OVERHEAD = 1
 PIPELINED = os.environ.get("RV_CORE", "pipe") == "pipe"
+# Published check values: they come from outside every tool in this repository.
+KNOWN = {"crc": 0xCBF43926}     # CRC-32 of "123456789"
 
 
 def load(name):
@@ -27,16 +29,20 @@ def load(name):
     assert path.exists(), f"{path} missing: run scripts/build_c.py first"
     info = json.loads(path.read_text())
     words = [int(w, 16) for w in (C_DIR / f"{name}.hex").read_text().split()]
-    assert info["data_words"] == 0, f"{name}: initialised data needs a data load path"
+    data = [int(w, 16) for w in (C_DIR / f"{name}.data.hex").read_text().split()]
+    assert len(data) == info["data_words"], f"{name}: data image size differs from the build record"
     assert info["expected"] is not None, f"{name}: no host reference value"
     assert len(words) <= IMEM_WORDS, f"{name}: {len(words)} words do not fit in instruction memory"
-    return info, words
+    assert info["data_base"] + 4 * len(data) <= DMEM_BYTES, f"{name}: data image does not fit in data memory"
+    return info, words, data
 
 
-def run_model(words, regs):
+def run_model(words, regs, data=(), data_base=0):
     """Run the model from the CPU's current registers; count load-use stalls and redirects."""
     m = RV32IModel(words, mem_bytes=DMEM_BYTES)
     m.regs = list(regs)
+    for i, w in enumerate(data):                      # initial .rodata/.data image
+        m.mem[data_base + 4 * i:data_base + 4 * i + 4] = w.to_bytes(4, "little")
     prev = None
     stalls = redirects = 0
     while m.imem[m.pc // 4] != HALT_WORD:
@@ -77,11 +83,14 @@ async def c_programs(dut):
     core = "pipeline" if PIPELINED else "single-cycle"
 
     for name in names:
-        info, words = load(name)
+        info, words, data = load(name)
         expected = info["expected"] & 0xFFFFFFFF
-        await load_program(dut, words)
+        if name in KNOWN:
+            assert expected == KNOWN[name], (f"{name}: host gcc gives {expected:#x}, "
+                                             f"the published value is {KNOWN[name]:#x}")
+        await load_program(dut, words, data, info["data_base"])
         regs = [0] + [await read_reg(dut, n) for n in range(1, 32)]
-        model, stalls, redirects = run_model(words, regs)
+        model, stalls, redirects = run_model(words, regs, data, info["data_base"])
         assert model.pc == info["halt_pc"], f"{name}: model halts at {model.pc:#x}, ELF says {info['halt_pc']:#x}"
         assert model.regs[10] == expected, (
             f"{name}: model a0 = {model.regs[10]}, host gcc = {expected} "
@@ -98,6 +107,11 @@ async def c_programs(dut):
         for a in sorted({s[0] & ~3 for s in model.stores}):
             got = await read_word(dut, a)
             assert got == model.word(a), f"{name} ({core}): mem[{a:#x}] = {got:#010x}, model {model.word(a):#010x}"
+        for i in range(len(data)):                    # the initial data image: loader and later writes
+            a = info["data_base"] + 4 * i
+            got = await read_word(dut, a)
+            assert got == model.word(a), (f"{name} ({core}): data image word {i} at {a:#x} = {got:#010x}, "
+                                          f"model {model.word(a):#010x}")
         a0 = await read_reg(dut, 10)
         assert a0 == expected, f"{name} ({core}): a0 = {a0}, host gcc = {expected}"
         if PIPELINED:

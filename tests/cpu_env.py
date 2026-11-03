@@ -24,10 +24,12 @@ async def read_word(dut, addr):
     return int(dut.dbg_mdata.value)
 
 
-async def load_program(dut, words):
-    """Write the program into instruction memory while the CPU is held in reset."""
+async def load_program(dut, words, data=(), data_base=0):
+    """Write the program into instruction memory, and optional initial words into data
+    memory, while the CPU is held in reset."""
     dut.rst.value = 1
     dut.load_we.value = 0
+    dut.dload_we.value = 0
     await ClockCycles(dut.clk, 2)
     for i, w in enumerate(words):
         dut.load_addr.value = 4 * i
@@ -35,6 +37,12 @@ async def load_program(dut, words):
         dut.load_we.value = 1
         await RisingEdge(dut.clk)
     dut.load_we.value = 0
+    for i, w in enumerate(data):
+        dut.dload_addr.value = data_base + 4 * i
+        dut.dload_data.value = w
+        dut.dload_we.value = 1
+        await RisingEdge(dut.clk)
+    dut.dload_we.value = 0
     await ClockCycles(dut.clk, 2)
 
 
