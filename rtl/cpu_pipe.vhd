@@ -256,4 +256,39 @@ begin
     wb_data <= memwb.alu_result when WB_ALU,
                memwb.mem_rdata  when WB_MEM,
                memwb.pc4        when WB_PC4;
+
+  ------------------------------------------------------------------ invariants
+  -- Checked every cycle outside reset; a violation stops the simulation.
+  -- synthesis translate_off
+  invariants : process(clk)
+    variable prev_ok             : boolean := false;    -- the previous cycle was outside reset
+    variable redirect_q, stall_q : std_logic := '0';
+    variable pc_q, ifid_q        : word := (others => '0');
+  begin
+    if rising_edge(clk) then
+      if rst = '0' then
+        assert not (stall = '1' and ex_redirect = '1')
+          report "invariant: load-use stall and redirect in the same cycle" severity failure;
+        assert not (idex.rs1 = Z5 and fwd_a /= "00")
+          report "invariant: operand A forwarded for x0" severity failure;
+        assert not (idex.rs2 = Z5 and fwd_b /= "00")
+          report "invariant: operand B forwarded for x0" severity failure;
+        if prev_ok and redirect_q = '1' then
+          assert idex = ID_EX_BUBBLE and ifid_instr = NOP
+            report "invariant: redirect did not flush IF/ID and ID/EX" severity failure;
+        end if;
+        if prev_ok and stall_q = '1' then
+          assert pc = pc_q and ifid_instr = ifid_q and idex = ID_EX_BUBBLE
+            report "invariant: stall did not hold PC and IF/ID or insert a bubble" severity failure;
+        end if;
+      end if;
+      prev_ok    := (rst = '0');
+      redirect_q := ex_redirect;
+      stall_q    := stall;
+      pc_q       := pc;
+      ifid_q     := ifid_instr;
+    end if;
+  end process;
+  -- synthesis translate_on
+
 end architecture;
