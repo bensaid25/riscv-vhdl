@@ -20,6 +20,9 @@ entity cpu_sc is
     load_we   : in  std_logic := '0';          -- write one instruction word
     load_addr : in  std_logic_vector(31 downto 0) := (others => '0');  -- byte address
     load_data : in  std_logic_vector(31 downto 0) := (others => '0');
+    dload_we   : in  std_logic := '0';          -- write one data-memory word (initial data)
+    dload_addr : in  std_logic_vector(31 downto 0) := (others => '0');  -- byte address
+    dload_data : in  std_logic_vector(31 downto 0) := (others => '0');
     dbg_raddr : in  std_logic_vector(4 downto 0) := (others => '0');
     dbg_rdata : out std_logic_vector(31 downto 0);
     dbg_maddr : in  std_logic_vector(31 downto 0) := (others => '0');  -- data memory byte address
@@ -61,7 +64,8 @@ begin
     port map (clk => clk, mem_write => d_we, mem_read => d_re,
               funct3 => d_funct3, addr => d_addr,
               wdata => d_wdata, rdata => d_rdata,
-              dbg_addr => dbg_maddr, dbg_data => dbg_mdata);
+              dbg_addr => dbg_maddr, dbg_data => dbg_mdata,
+              load_we => dload_we, load_addr => dload_addr, load_data => dload_data);
 
   -- Observation: the very signals wired into the data memory
   pc_out   <= pc;

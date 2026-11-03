@@ -13,6 +13,9 @@ architecture sim of dmem_tb is
   signal wdata     : std_logic_vector(31 downto 0) := (others => '0');
   signal rdata     : std_logic_vector(31 downto 0);
   signal done      : boolean := false;
+  signal load_we   : std_logic := '0';
+  signal load_addr : std_logic_vector(31 downto 0) := (others => '0');
+  signal load_data : std_logic_vector(31 downto 0) := (others => '0');
 
   constant F_B  : std_logic_vector(2 downto 0) := "000";
   constant F_H  : std_logic_vector(2 downto 0) := "001";
@@ -22,7 +25,8 @@ architecture sim of dmem_tb is
 begin
   dut: entity work.dmem
     port map (clk => clk, mem_write => mem_write, mem_read => mem_read,
-              funct3 => funct3, addr => addr, wdata => wdata, rdata => rdata);
+              funct3 => funct3, addr => addr, wdata => wdata, rdata => rdata,
+              load_we => load_we, load_addr => load_addr, load_data => load_data);
 
   clk <= not clk after 5 ns when not done;
 
@@ -83,6 +87,18 @@ begin
     mem_read <= '0';
     wait for 1 ns;
     assert rdata = x"00000000" report "rdata not zero when mem_read=0" severity error;
+
+    -- initial-data load port: a little-endian word, readable with every load width
+    load_addr <= std_logic_vector(to_unsigned(64, 32));
+    load_data <= x"11223344";
+    load_we   <= '1';
+    wait until rising_edge(clk);
+    wait for 1 ns;
+    load_we   <= '0';
+    load("load port LW",  64, F_W,  x"11223344");
+    load("load port LB",  65, F_B,  x"00000033");
+    load("load port LH",  66, F_H,  x"00001122");
+    load("load port LBU", 67, F_BU, x"00000011");
 
     report "dmem_tb finished";
     done <= true;

@@ -12,6 +12,10 @@ entity dmem is
     addr      : in  std_logic_vector(31 downto 0);
     wdata     : in  std_logic_vector(31 downto 0);
     rdata     : out std_logic_vector(31 downto 0);
+    -- test-bench initial data: write one word, little-endian (byte address, word aligned)
+    load_we   : in  std_logic := '0';
+    load_addr : in  std_logic_vector(31 downto 0) := (others => '0');
+    load_data : in  std_logic_vector(31 downto 0) := (others => '0');
     -- debug word read (used by cocotb), little-endian
     dbg_addr  : in  std_logic_vector(31 downto 0) := (others => '0');
     dbg_data  : out std_logic_vector(31 downto 0)
@@ -27,7 +31,13 @@ begin
     variable a : natural;
   begin
     if rising_edge(clk) then
-      if mem_write = '1' then
+      if load_we = '1' then
+        a := to_integer(unsigned(load_addr(30 downto 0))) mod DEPTH;
+        mem(a)                 <= load_data(7 downto 0);
+        mem((a + 1) mod DEPTH) <= load_data(15 downto 8);
+        mem((a + 2) mod DEPTH) <= load_data(23 downto 16);
+        mem((a + 3) mod DEPTH) <= load_data(31 downto 24);
+      elsif mem_write = '1' then
         a := to_integer(unsigned(addr(30 downto 0))) mod DEPTH;
         mem(a) <= wdata(7 downto 0);                          -- SB, SH, SW
         if funct3(1 downto 0) /= "00" then                    -- SH, SW
