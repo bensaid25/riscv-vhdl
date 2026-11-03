@@ -42,3 +42,8 @@ pipe_flush:
 pipe_regress:
 	python tests/test_cpu_pipe_fwd.py
 	python tests/test_cpu_pipe_random.py
+
+.PHONY: encoder_check
+encoder_check:
+	python scripts/check_encoder.py 100 1
+	python scripts/check_encoder.py 100 2
