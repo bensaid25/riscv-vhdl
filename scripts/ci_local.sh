@@ -12,4 +12,5 @@ git clone -q "$repo" "$tmp/repo"
 cd "$tmp/repo"
 if [ -x "$repo/.venv/bin/python" ]; then export PATH="$repo/.venv/bin:$PATH"; fi
 make test
+make c_regress
 echo "CLEAN-CLONE REGRESSION PASSED"
