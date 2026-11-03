@@ -5,7 +5,7 @@
 ![ISA](https://img.shields.io/badge/ISA-RV32I-orange)
 ![Simulation only](https://img.shields.io/badge/hardware-not%20required-green)
 
-A **5-stage pipelined RISC-V (RV32I) CPU** in VHDL, built in phases: the single-cycle baseline and the 5-stage pipeline are complete and verified; program-level verification and synthesis come next. Verified with self-checking testbenches, Python (cocotb) tests and continuous integration.
+A **5-stage pipelined RISC-V (RV32I) CPU** in VHDL, built in phases and verified at three levels: self-checking unit testbenches, constrained-random programs compared with an independent Python reference model, and C programs compiled with the RISC-V GCC toolchain and checked against the host compiler. The single-cycle baseline, the 5-stage pipeline and the C-program flow are complete; synthesis and timing analysis come next.
 
 The whole project runs in simulation: **no FPGA board required**.
 
@@ -16,8 +16,8 @@ The whole project runs in simulation: **no FPGA board required**.
 | 1. Foundations | Done |
 | 2. Single-cycle CPU | Done: verified against an independent reference model |
 | 3. Pipelining | Done: forwarding, load-use stall and flush, verified against the reference model |
-| 4. Program-level verification | Next |
-| 5. Synthesis and analysis | Planned |
+| 4. Program-level verification | Done: C programs compiled with GCC agree with the host compiler, the model and both cores |
+| 5. Synthesis and analysis | Next |
 | 6. Documentation | Planned |
 
 ## Why this project
@@ -30,9 +30,7 @@ The whole project runs in simulation: **no FPGA board required**.
 
 Two cores share the same ports and the same memory wrapper. `cpu_sc` selects the core with the generic `PIPELINED` (default `false`).
 
-### Single-cycle baseline
-
-The single-cycle RV32I CPU executes one instruction per clock cycle. It is the correctness baseline for the pipelined version and the reference for the CPI comparison.
+### Modules
 
 | Module | Role |
 |---|---|
@@ -41,9 +39,9 @@ The single-cycle RV32I CPU executes one instruction per clock cycle. It is the c
 | `immgen` | Immediate generator for I, S, B, U and J formats |
 | `control`, `ctrl_pkg` | Instruction decoder and control signals |
 | `branch_unit` | Branch decision logic |
-| `imem` | Instruction memory |
-| `dmem` | Byte-addressable little-endian data memory |
-| `cpu_core` | Single-cycle processor logic |
+| `imem` | Instruction memory (hex file or test-bench load port) |
+| `dmem` | Byte-addressable little-endian data memory (optional load port for initial data in test benches) |
+| `cpu_core` | Single-cycle processor logic: the correctness baseline and the CPI reference |
 | `cpu_pipe` | 5-stage pipelined processor logic (same ports as `cpu_core`) |
 | `forward_unit` | EX-stage forwarding from EX/MEM and MEM/WB |
 | `cpu_sc` | Selected core (`PIPELINED` generic) with instruction and data memories |
@@ -74,8 +72,9 @@ flowchart LR
 1. **Unit tests:** self-checking VHDL testbenches for every block, using `assert` statements.
 2. **Instruction-level tests:** constrained-random RV32I programs generated in Python, executed through cocotb and compared with an independent reference model. The pipeline is also checked against an exact cycle formula (instructions + load-use stalls + 2 per redirect + 1).
 3. **Mutation checks:** intentional RTL bugs introduced using `scripts/mutate.sh` to verify that the regression detects errors. Bugs planted in the single-cycle core, forwarding, load-use stall, flush and register file bypass: 40 of 40 caught.
-4. **Program-level tests (planned):** C programs compiled with the RISC-V GCC toolchain and compared against a reference model.
-5. **Continuous integration:** automated regression on every push.
+4. **Program-level tests:** C programs compiled with the RISC-V GCC toolchain. For each program, the result computed by the **host compiler**, the Python model, the single-cycle core and the pipelined core must agree, along with every store, all 32 registers and the data memory. The CRC-32 program is also checked against the published check value for `"123456789"` (`0xCBF43926`).
+5. **Encoder cross-check:** `scripts/check_encoder.py` compares the Python instruction encoder with the GNU assembler on thousands of random instructions.
+6. **Continuous integration:** the full regression, including the C programs, runs on every push.
 
 ## Getting started
 
@@ -83,28 +82,31 @@ flowchart LR
 
 - [GHDL](https://github.com/ghdl/ghdl) with the LLVM backend (`ghdl-llvm`, VHDL-2008 support; required by cocotb)
 - [cocotb](https://www.cocotb.org/) 2.x and Python 3 (installed from `requirements.txt`)
+- RISC-V GCC (`riscv64-unknown-elf-gcc` with an `rv32i` multilib) and the host `gcc`, for `make c_regress`
 - [GTKWave](https://gtkwave.sourceforge.net/) to inspect waveforms
 - `make`
-- Optional: RISC-V GCC toolchain (for the C-program tests in later phases)
 
 On Ubuntu or WSL:
 
 ```bash
-sudo apt install -y ghdl-llvm gtkwave make python3-venv
-python3 -m venv ~/.venvs/hdl && source ~/.venvs/hdl/bin/activate
+sudo apt install -y ghdl-llvm gtkwave make python3-venv gcc gcc-riscv64-unknown-elf binutils-riscv64-unknown-elf
+python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+If `ghdl --version` does not mention the LLVM backend, remove the mcode package (`sudo apt remove ghdl-mcode`): cocotb needs VPI support, which mcode does not provide.
 
 ### Run the tests
 
 ```bash
-make test        # run every testbench
+make test        # run every VHDL testbench and every cocotb test
+make c_regress   # build every C program and run it on both cores
 make alu_tb      # run a single VHDL testbench
 make cocotb      # run only cocotb tests
 make clean       # remove generated files
 ```
 
-New VHDL testbenches named `tb/<name>_tb.vhd` and Python tests named `tests/test_*.py` are discovered automatically.
+New VHDL testbenches named `tb/<name>_tb.vhd` and Python tests named `tests/test_*.py` are discovered automatically. `scripts/ci_local.sh` runs the whole regression on a fresh clone of the committed state, which is exactly what CI sees.
 
 ### Random CPU regression
 
@@ -127,6 +129,7 @@ RV_HAZARD=0.0 RV_PROGRAMS=200 python tests/test_cpu_pipe_random.py
 ```bash
 scripts/mutate.sh rtl/cpu_core.vhd cpu_regress 's/<pattern>/<replacement>/'
 scripts/mutate.sh rtl/forward_unit.vhd pipe_regress 's/<pattern>/<replacement>/'
+scripts/mutate.sh rtl/dmem.vhd c_regress 's/<pattern>/<replacement>/'
 ```
 
 ### View waveforms
@@ -137,16 +140,59 @@ Each run writes a waveform file to `sim/`:
 gtkwave sim/alu_tb.ghw
 ```
 
+## C programs
+
+Programs in `sw/programs/` are compiled for the bare CPU (`-march=rv32i -mabi=ilp32`, no operating system, no C library) and loaded into the simulated memories.
+
+```bash
+make c_regress                                  # all programs, both cores
+python scripts/build_c.py sw/programs/sum.c     # one program: sim/c/sum.{elf,dis,hex,data.hex,json}
+python scripts/c_coverage.py                    # which RV32I instructions appear in the compiled programs
+python scripts/check_encoder.py 100 1           # Python encoder vs the GNU assembler
+```
+
+| Region | Addresses | Holds |
+|---|---|---|
+| Instruction memory | `0x0000` to `0x1FFF` (8 KiB) | `.text`, starting with `_start` at address 0 |
+| Data memory | `0x2000` to `0x3FFF` (8 KiB) | `.rodata`, `.data`, `.bss`, and the stack growing down from `0x4000` |
+
+How it works:
+
+- `sw/crt0.S` sets the stack pointer, clears `.bss`, calls `main` and ends in the halt loop `jal x0, 0`. `sw/link.ld` places code and data in the two regions.
+- Multiplication and division have no hardware support in RV32I: the compiler calls software routines from `libgcc`, which run on the CPU like any other code.
+- `scripts/build_c.py` rejects any instruction outside the base ISA, then writes the instruction image and the initial data image (`.rodata`, `.data`) that the testbench loads through load ports.
+- Each program also runs on the host with the host compiler. That result is the independent reference.
+
+To add a program, put a `.c` file with `int main(void)` in `sw/programs/`; `make c_regress` picks it up. Keep inputs `volatile` (so the compiler cannot compute the answer at build time) and avoid undefined behaviour, because the host compiler must produce the same value.
+
+### Measured CPI
+
+Printed by `make c_regress` (cycles per instruction; the single-cycle core is 1 plus a fixed overhead of one cycle):
+
+| Program | Instructions | Single-cycle CPI | Pipeline CPI |
+|---|---|---|---|
+| sum | 420 | 1.002 | 1.729 |
+| sort | 1256 | 1.001 | 1.404 |
+| gcd | 6426 | 1.000 | 1.471 |
+| matmul | 3626 | 1.000 | 1.411 |
+| bytes | 1078 | 1.001 | 1.199 |
+| bits | 4628 | 1.000 | 1.314 |
+| crc | 141 | 1.007 | 1.234 |
+| rec | 32570 | 1.000 | 1.364 |
+
+CPI is not performance: execution time is cycles times clock period, so the pipeline only wins if synthesis shows a clock period shorter by more than its CPI. That measurement is Phase 5.
+
 ## Repository structure
 
 ```text
 rtl/       synthesizable VHDL (design under test)
 tb/        self-checking VHDL testbenches
 tb/data/   hex programs used by CPU tests
-tests/     cocotb tests, RV32I encoder, reference model and random generator
-scripts/   mutation-check helper
+tests/     cocotb tests, RV32I encoder, reference model, random generator
+sw/        C programs, startup code and linker script
+scripts/   C build flow, mutation checks, encoder cross-check, clean-clone regression
 sim/       generated waveforms and build files (git-ignored)
-docs/      project proposal and design notes
+docs/      project proposal and phase reports
 .github/   CI workflow
 ```
 
@@ -164,8 +210,8 @@ Development is organized in phases, tracked through commits and GitHub milestone
 1. **Foundations (done):** toolchain, basic blocks, FSMs, first testbenches.
 2. **Single-cycle CPU (done):** ALU, register file, decoder, memories and datapath.
 3. **Pipelining (done):** five stages, forwarding, hazard detection and branch handling.
-4. **Program-level verification (next):** C programs, reference-model comparison, coverage and CI.
-5. **Synthesis and analysis (planned):** timing and resource reports, CPI and performance comparison.
+4. **Program-level verification (done):** C programs, host-compiler and model comparison, initialized data, instruction coverage and CI.
+5. **Synthesis and analysis (next):** timing and resource reports, CPI and performance comparison.
 6. **Documentation (planned):** architecture diagrams and final report.
 
 Stretch goals: instruction/data cache, UART peripheral, M extension, custom instruction.
