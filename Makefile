@@ -47,3 +47,8 @@ pipe_regress:
 encoder_check:
 	python scripts/check_encoder.py 100 1
 	python scripts/check_encoder.py 100 2
+
+.PHONY: c_regress
+c_regress:
+	python scripts/build_c.py sw/programs/*.c
+	python tests/cpu_c_programs.py
