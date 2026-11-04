@@ -5,7 +5,7 @@
 ![ISA](https://img.shields.io/badge/ISA-RV32I-orange)
 ![Simulation only](https://img.shields.io/badge/hardware-not%20required-green)
 
-A **5-stage pipelined RISC-V (RV32I) CPU** in VHDL, built in phases and verified at three levels: self-checking unit testbenches, constrained-random programs compared with an independent Python reference model, and C programs compiled with the RISC-V GCC toolchain and checked against the host compiler. The single-cycle baseline, the 5-stage pipeline and the C-program flow are complete; synthesis and timing analysis come next.
+A **5-stage pipelined RISC-V (RV32I) CPU** in VHDL, built in phases and verified at three levels: self-checking unit testbenches, constrained-random programs compared with an independent Python reference model, and C programs compiled with the RISC-V GCC toolchain and checked against the host compiler. The single-cycle baseline, the 5-stage pipeline and the C-program flow are complete; synthesis and timing analysis are done: on an ECP5 FPGA the pipeline turns out slower than the single-cycle core (see [Synthesis results](#synthesis-results)).
 
 The whole project runs in simulation: **no FPGA board required**.
 
@@ -17,7 +17,7 @@ The whole project runs in simulation: **no FPGA board required**.
 | 2. Single-cycle CPU | Done: verified against an independent reference model |
 | 3. Pipelining | Done: forwarding, load-use stall and flush, verified against the reference model |
 | 4. Program-level verification | Done: C programs compiled with GCC agree with the host compiler, the model and both cores |
-| 5. Synthesis and analysis | Next |
+| 5. Synthesis and analysis | Done: ECP5 synthesis, Fmax over 5 seeds, execution-time comparison |
 | 6. Documentation | Planned |
 
 ## Why this project
@@ -188,19 +188,67 @@ Printed by `make c_regress` (cycles per instruction; the single-cycle core is 1 
 
 The last row weights each program by its instruction count, so it depends on the mix: `rec` is half of the instructions, and `cmp` and `cmpi` are coverage programs, not workloads. The per-program range (1.09 to 1.73) says more than the average.
 
-CPI is not performance: execution time is cycles times clock period, so the pipeline only wins if its clock frequency beats the single-cycle clock by a factor larger than its CPI (1.09 to 1.73 here, depending on the program). That measurement is Phase 5.
+CPI is not performance: execution time is cycles times clock period, so the pipeline only wins if its clock frequency beats the single-cycle clock by a factor larger than its CPI (1.09 to 1.73 here, depending on the program). That measurement is in [Synthesis results](#synthesis-results).
+
+## Synthesis results
+
+Both cores were synthesized for a **Lattice ECP5 LFE5U-85F (CABGA381)** with the open-source flow: `ghdl --synth --out=verilog` -> Yosys `synth_ecp5` -> nextpnr-ecp5 (GHDL 5.0.1, Yosys 0.52, nextpnr 0.9). No board is involved. The wrapper `synth/synth_top.vhd` instantiates `cpu_sc` with a 256-word instruction memory and a 1 KiB data memory, the same for both cores. The instruction memory holds `sim/c/sort.hex`, so run `make c_regress` once before synthesizing.
+
+```bash
+scripts/synth.sh false          # single-cycle (args: true|false [seed] [target MHz])
+scripts/synth.sh true           # pipelined
+scripts/synth_sweep.sh 100 5    # target 100 MHz, seeds 1 to 5, both cores
+make c_regress > /tmp/cr.log 2>&1
+python scripts/speedup.py /tmp/cr.log 44.17 47.58   # cycles / median Fmax
+```
+
+| | Single-cycle | Pipelined |
+|---|---|---|
+| Fmax, median of 5 seeds | 44.17 MHz | 47.58 MHz |
+| Fmax, range | 43.90 to 45.23 MHz | 44.90 to 49.05 MHz |
+| LUT/logic cells (TRELLIS_COMB) | 2518 | 3553 |
+| Flip-flops (TRELLIS_FF) | 33 | 439 |
+| Block RAM (DP16KD) | 0 | 1 |
+
+Execution time is cycles divided by the median Fmax:
+
+| Program | Single-cycle (us) | Pipelined (us) | Speedup of the pipeline |
+|---|---|---|---|
+| bits | 103.9 | 127.0 | 0.818 |
+| bytes | 24.4 | 27.2 | 0.899 |
+| cmp | 127.0 | 130.4 | 0.974 |
+| cmpi | 214.6 | 217.9 | 0.985 |
+| crc | 3.2 | 3.7 | 0.879 |
+| gcd | 145.5 | 198.7 | 0.732 |
+| matmul | 82.1 | 107.5 | 0.764 |
+| rec | 737.4 | 933.4 | 0.790 |
+| sort | 28.5 | 37.1 | 0.768 |
+| sum | 9.5 | 15.3 | 0.625 |
+
+**On this device and with these cores, the pipeline is slower on all ten programs.** Its median clock is only about 8% higher (the seed ranges overlap), which does not pay for a CPI of 1.09 to 1.73. The critical paths explain it: both cores have about 20 cells on the longest path, and 72 to 78% of the delay is routing (single-cycle: 4.97 ns logic, 17.81 ns routing; pipelined: 5.72 ns logic, 14.67 ns routing, seed 3). The single-cycle path runs from the PC through the register file and the data memory back to the register file. The pipelined path runs through the EX stage (forwarding, ALU, branch decision and the flush of a pipeline register), so the longest stage is not much shorter than the whole single-cycle path.
+
+Limits of these numbers:
+
+- One device, one tool flow, one ROM image (`sort.hex`), and only 5 placement seeds.
+- The instruction ROM is folded into logic in the single-cycle build and mapped to a block RAM in the pipelined build, so the two builds are not mapped identically.
+- The memories are asynchronous (distributed RAM). Synchronous memories would give different numbers.
+- The synthesized netlist has not been simulated.
+- Execution time is cycles divided by Fmax only: power and area are not part of the comparison.
+
+Two RTL changes were made for synthesis, each followed by the full regression with identical cycle counts: `dmem` was split into four byte lanes so it maps to RAM, and the ALU now uses one adder/subtractor and one shared shifter.
 
 ## Repository structure
 
 ```text
 rtl/       synthesizable VHDL (design under test)
 tb/        self-checking VHDL testbenches
+synth/     synthesis wrapper for the ECP5 flow
 tb/data/   hex programs used by CPU tests
 tests/     cocotb tests, RV32I encoder, reference model, random generator
 sw/        C programs, startup code and linker script
 scripts/   C build flow, mutation checks, encoder cross-check, clean-clone regression
 sim/       generated waveforms and build files (git-ignored)
-docs/      project proposal and phase reports
+docs/      project proposal and synthesis results
 .github/   CI workflow
 ```
 
@@ -219,7 +267,7 @@ Development is organized in phases, tracked through commits and GitHub milestone
 2. **Single-cycle CPU (done):** ALU, register file, decoder, memories and datapath.
 3. **Pipelining (done):** five stages, forwarding, hazard detection and branch handling.
 4. **Program-level verification (done):** C programs, host-compiler and model comparison, initialized data, instruction coverage and CI.
-5. **Synthesis and analysis (next):** timing and resource reports, CPI and performance comparison.
+5. **Synthesis and analysis (done):** timing and resource reports, CPI and performance comparison.
 6. **Documentation (planned):** architecture diagrams and final report.
 
 Stretch goals: instruction/data cache, UART peripheral, M extension, custom instruction.
