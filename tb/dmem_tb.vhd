@@ -76,6 +76,15 @@ begin
     store(18, x"00001234", F_H);                       -- SH must touch two bytes only
     load("LW after SH", 16, F_W,  x"1234AA01");
 
+    -- every byte lane and both half-word positions, on a word of known content
+    store(32, x"11223344", F_W);  load("LW @32 init",  32, F_W, x"11223344");
+    store(32, x"FFFFFFAA", F_B);  load("LW after SB@32", 32, F_W, x"112233AA");
+    store(33, x"FFFFFFBB", F_B);  load("LW after SB@33", 32, F_W, x"1122BBAA");
+    store(34, x"FFFFFFCC", F_B);  load("LW after SB@34", 32, F_W, x"11CCBBAA");
+    store(35, x"FFFFFFDD", F_B);  load("LW after SB@35", 32, F_W, x"DDCCBBAA");
+    store(32, x"ABCD5566", F_H);  load("LW after SH@32", 32, F_W, x"DDCC5566");
+    store(34, x"EF017788", F_H);  load("LW after SH@34", 32, F_W, x"77885566");
+
     -- write enable low: nothing may change
     addr <= std_logic_vector(to_unsigned(16, 32));
     wdata <= x"FFFFFFFF";  funct3 <= F_W;  mem_write <= '0';
