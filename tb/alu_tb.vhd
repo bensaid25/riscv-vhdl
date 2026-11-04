@@ -71,6 +71,16 @@ begin
     -- zero flag from a non-trivial result
     check(x"F0F0F0F0", x"0F0F0F0F", ALU_AND,  x"00000000");
 
+    -- same-sign compares: the result depends on the subtraction, not on the sign bits
+    check(x"00000001", x"00000005", ALU_SLT,  x"00000001");
+    check(x"00000005", x"00000001", ALU_SLT,  x"00000000");
+    check(x"FFFFFFFB", x"FFFFFFFF", ALU_SLT,  x"00000001");  -- -5 < -1
+    check(x"FFFFFFFF", x"FFFFFFFB", ALU_SLT,  x"00000000");  -- -1 < -5 is false
+    check(x"00000001", x"00000005", ALU_SLTU, x"00000001");
+    check(x"00000005", x"00000001", ALU_SLTU, x"00000000");
+    check(x"FFFFFFFB", x"FFFFFFFF", ALU_SLTU, x"00000001");
+    check(x"FFFFFFFF", x"FFFFFFFB", ALU_SLTU, x"00000000");
+
     report "alu_tb finished";
     wait;
   end process;
