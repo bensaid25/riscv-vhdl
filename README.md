@@ -71,10 +71,11 @@ flowchart LR
 
 1. **Unit tests:** self-checking VHDL testbenches for every block, using `assert` statements.
 2. **Instruction-level tests:** constrained-random RV32I programs generated in Python, executed through cocotb and compared with an independent reference model. The pipeline is also checked against an exact cycle formula (instructions + load-use stalls + 2 per redirect + 1).
-3. **Mutation checks:** intentional RTL bugs introduced using `scripts/mutate.sh` to verify that the regression detects errors. Bugs planted in the single-cycle core, forwarding, load-use stall, flush and register file bypass: 40 of 40 caught.
+3. **Mutation checks:** intentional RTL bugs introduced using `scripts/mutate.sh` to verify that the regression detects errors. Bugs planted in the single-cycle core, forwarding, load-use stall, flush, register file bypass and the data-memory load path: 46 of 46 caught by at least one test target. The C programs alone catch 7 of the 8 flush and redirect bugs; the one they cannot see (a JALR target with bit 0 set) never occurs in compiled code, and the random programs catch it.
 4. **Program-level tests:** C programs compiled with the RISC-V GCC toolchain. For each program, the result computed by the **host compiler**, the Python model, the single-cycle core and the pipelined core must agree, along with every store, all 32 registers and the data memory. The CRC-32 program is also checked against the published check value for `"123456789"` (`0xCBF43926`).
 5. **Encoder cross-check:** `scripts/check_encoder.py` compares the Python instruction encoder with the GNU assembler on thousands of random instructions.
-6. **Continuous integration:** the full regression, including the C programs, runs on every push.
+6. **Pipeline invariants:** `cpu_pipe.vhd` contains assertions checked on every cycle: a load-use stall and a redirect never coincide, x0 is never forwarded, a redirect flushes IF/ID and ID/EX, and a stall holds the PC and IF/ID and inserts a bubble. Every test that runs the pipeline enforces them, and five planted bugs each triggered the matching assertion.
+7. **Continuous integration:** the full regression, including the C programs, runs on every push.
 
 ## Getting started
 
@@ -147,7 +148,8 @@ Programs in `sw/programs/` are compiled for the bare CPU (`-march=rv32i -mabi=il
 ```bash
 make c_regress                                  # all programs, both cores
 python scripts/build_c.py sw/programs/sum.c     # one program: sim/c/sum.{elf,dis,hex,data.hex,json}
-python scripts/c_coverage.py                    # which RV32I instructions appear in the compiled programs
+python scripts/c_coverage.py                    # static: which RV32I instructions appear in the binaries
+python scripts/c_exec_coverage.py               # dynamic: which ones the model executes, and branch outcomes
 python scripts/check_encoder.py 100 1           # Python encoder vs the GNU assembler
 ```
 
@@ -162,6 +164,7 @@ How it works:
 - Multiplication and division have no hardware support in RV32I: the compiler calls software routines from `libgcc`, which run on the CPU like any other code.
 - `scripts/build_c.py` rejects any instruction outside the base ISA, then writes the instruction image and the initial data image (`.rodata`, `.data`) that the testbench loads through load ports.
 - Each program also runs on the host with the host compiler. That result is the independent reference.
+- All 37 RV32I instructions execute in the programs, and every branch type is seen both taken and not taken (`scripts/c_exec_coverage.py`). GCC did not emit `slti` for these programs, and `bge` was executed but never taken, so `cmpi.c` forces both with inline assembly; the host build uses plain C, so the host result stays the reference.
 
 To add a program, put a `.c` file with `int main(void)` in `sw/programs/`; `make c_regress` picks it up. Keep inputs `volatile` (so the compiler cannot compute the answer at build time) and avoid undefined behaviour, because the host compiler must produce the same value.
 
@@ -171,16 +174,21 @@ Printed by `make c_regress` (cycles per instruction; the single-cycle core is 1 
 
 | Program | Instructions | Single-cycle CPI | Pipeline CPI |
 |---|---|---|---|
-| sum | 420 | 1.002 | 1.729 |
-| sort | 1256 | 1.001 | 1.404 |
+| bits | 4588 | 1.000 | 1.317 |
+| bytes | 1078 | 1.001 | 1.199 |
+| cmp | 5608 | 1.000 | 1.106 |
+| cmpi | 9477 | 1.000 | 1.094 |
+| crc | 141 | 1.007 | 1.234 |
 | gcd | 6426 | 1.000 | 1.471 |
 | matmul | 3626 | 1.000 | 1.411 |
-| bytes | 1078 | 1.001 | 1.199 |
-| bits | 4628 | 1.000 | 1.314 |
-| crc | 141 | 1.007 | 1.234 |
 | rec | 32570 | 1.000 | 1.364 |
+| sort | 1256 | 1.001 | 1.404 |
+| sum | 420 | 1.002 | 1.729 |
+| **All programs** | 65190 | 1.000 | 1.312 |
 
-CPI is not performance: execution time is cycles times clock period, so the pipeline only wins if synthesis shows a clock period shorter by more than its CPI. That measurement is Phase 5.
+The last row weights each program by its instruction count, so it depends on the mix: `rec` is half of the instructions, and `cmp` and `cmpi` are coverage programs, not workloads. The per-program range (1.09 to 1.73) says more than the average.
+
+CPI is not performance: execution time is cycles times clock period, so the pipeline only wins if its clock frequency beats the single-cycle clock by a factor larger than its CPI (1.09 to 1.73 here, depending on the program). That measurement is Phase 5.
 
 ## Repository structure
 
